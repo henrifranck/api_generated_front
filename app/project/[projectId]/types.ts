@@ -9,6 +9,7 @@ export interface Attribute {
   foreign_key: string | null;
   is_required: boolean;
   foreign_key_class?: string;
+  relation_name?: string;
   is_auto_increment: boolean;
 }
 
