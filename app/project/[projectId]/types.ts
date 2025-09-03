@@ -11,6 +11,7 @@ export interface Attribute {
   foreign_key_class?: string;
   relation_name?: string;
   is_auto_increment: boolean;
+  enum_name?: string;
 }
 
 export interface ClassModel {

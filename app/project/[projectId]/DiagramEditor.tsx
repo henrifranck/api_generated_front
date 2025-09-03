@@ -91,7 +91,8 @@ const DEFAULT_COLUMN: Attribute = {
   is_required: false,
   is_indexed: false,
   is_auto_increment: false,
-  relation_name: ""
+  relation_name: "",
+  enum_name: ""
 };
 
 const DEFAULT_CLASS: ClassData = {
@@ -120,7 +121,7 @@ export function DiagramEditor({ selectedProject, onSave }: DiagramEditorProps) {
     { key: string; value: string }[]
   >([{ key: "", value: "" }]);
 
-  const [enums, setEnums] = useState<EnumType[]>(selectedProject.enums || []);
+  const [enums, setEnums] = useState<EnumType[]>(selectedProject.nodes.enums || []);
   const [isEnumOpen, setIsEnumOpen] = useState(false);
   const [isEnumEdited, setIsEnumEdited] = useState(false);
 
@@ -290,8 +291,7 @@ export function DiagramEditor({ selectedProject, onSave }: DiagramEditorProps) {
 
       if (!response.ok) {
         throw new Error(
-          `Failed to ${editMode ? "update" : "create"} project. Status: ${
-            response.status
+          `Failed to ${editMode ? "update" : "create"} project. Status: ${response.status
           }`
         );
       }
@@ -331,8 +331,7 @@ export function DiagramEditor({ selectedProject, onSave }: DiagramEditorProps) {
 
       if (!response.ok) {
         throw new Error(
-          `Failed to ${editMode ? "update" : "create"} project. Status: ${
-            response.status
+          `Failed to ${editMode ? "update" : "create"} project. Status: ${response.status
           }`
         );
       }
@@ -453,6 +452,10 @@ export function DiagramEditor({ selectedProject, onSave }: DiagramEditorProps) {
       return;
     }
 
+    if (newColumn.type === "ENUM") {
+      newColumn.enum_name = selectedEnum
+    }
+
     setNewClass((prev) => ({
       ...prev,
       attributes: [...prev.attributes, { ...newColumn }]
@@ -463,12 +466,21 @@ export function DiagramEditor({ selectedProject, onSave }: DiagramEditorProps) {
 
   const handleEditColumn = useCallback((column: Attribute, index: number) => {
     setNewColumn({ ...column });
+    if (column.type === "ENUM" && column.enum_name) {
+      console.log(column)
+      setIsEnumSelected(true);
+      setSelectedEnum(column.enum_name)
+    }
     setCurrentColumnIndex(index);
   }, []);
 
   const handleUpdateColumn = useCallback(() => {
     if (!newColumn.name || currentColumnIndex === null) return;
 
+    if (newColumn.type === "ENUM") {
+      newColumn.enum_name = selectedEnum
+    }
+    console.log(newColumn);
     const updated = [...newClass.attributes];
     updated[currentColumnIndex] = { ...newColumn };
     setNewClass((prev) => ({ ...prev, attributes: updated }));
@@ -1017,9 +1029,8 @@ export function DiagramEditor({ selectedProject, onSave }: DiagramEditorProps) {
                           <div className="flex items-center gap-2">
                             <Input
                               id="foreignKeyRef"
-                              value={`${newColumn.foreign_key_class ?? ""}.${
-                                newColumn.foreign_key ?? ""
-                              }`}
+                              value={`${newColumn.foreign_key_class ?? ""}.${newColumn.foreign_key ?? ""
+                                }`}
                               onChange={(e) => {
                                 const value = e.target.value;
                                 const [foreign_key_class, foreign_key] =
@@ -1038,10 +1049,10 @@ export function DiagramEditor({ selectedProject, onSave }: DiagramEditorProps) {
                           {!validateForeignKeyRef(
                             `${newColumn.foreign_key_class}.${newColumn.foreign_key}`
                           ) && (
-                            <p className="text-xs text-destructive mt-1">
-                              Format: ClassName.columnName (e.g. User.id)
-                            </p>
-                          )}
+                              <p className="text-xs text-destructive mt-1">
+                                Format: ClassName.columnName (e.g. User.id)
+                              </p>
+                            )}
                           <Label htmlFor="RelationName" className="text-sm">
                             Relation name
                           </Label>
