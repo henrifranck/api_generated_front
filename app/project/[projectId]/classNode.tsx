@@ -11,12 +11,27 @@ import {
   TooltipTrigger
 } from "@/src/components/ui/tooltip";
 import { Label } from "@/src/components/ui/label";
+import { cn } from "@/src/lib/utils";
 
-const ClassNode: React.FC<NodeProps<ClassData>> = ({ data, id }) => {
+interface ClassNodeProps extends NodeProps<ClassData> {
+  isHighlighted?: boolean;
+}
+
+const ClassNode: React.FC<ClassNodeProps> = ({ data, id, isHighlighted }) => {
   return (
     <TooltipProvider delayDuration={200}>
-      <Card className="min-w-[200px] border-border shadow-sm hover:shadow-md transition-shadow">
-        <CardHeader className="bg-primary text-primary-foreground p-2 rounded-t-sm">
+      <Card
+        className={cn(
+          "min-w-[200px] border-border shadow-sm hover:shadow-md transition-shadow",
+          isHighlighted && "ring-2 ring-primary shadow-lg border-primary"
+        )}
+      >
+        <CardHeader
+          className={cn(
+            "bg-primary text-primary-foreground p-2 rounded-t-sm",
+            isHighlighted && "bg-primary/80"
+          )}
+        >
           <div className="flex justify-between items-center">
             <h4 className="text-sm font-semibold">{data.name}</h4>
             <div className="flex space-x-1">

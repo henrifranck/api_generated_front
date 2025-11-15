@@ -12,7 +12,8 @@ import ReactFlow, {
   Node,
   Edge,
   Connection,
-  ReactFlowInstance
+  ReactFlowInstance,
+  NodeProps
 } from "reactflow";
 import "reactflow/dist/style.css";
 import {
@@ -111,7 +112,6 @@ interface DiagramEditorProps {
 
 export function DiagramEditor({ selectedProject, onSave }: DiagramEditorProps) {
   // State
-  const nodeTypes = useMemo(() => ({ classNode: ClassNode }), []);
   const [nodes, setNodes, onNodesChange] = useNodesState<ClassData>(
     selectedProject.nodes.nodes || []
   );
@@ -145,6 +145,21 @@ export function DiagramEditor({ selectedProject, onSave }: DiagramEditorProps) {
 
   const [isEnumSelected, setIsEnumSelected] = useState(false);
   const [selectedEnum, setSelectedEnum] = useState<string>("");
+  const [classSearch, setClassSearch] = useState("");
+  const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(
+    null
+  );
+  const nodeTypes = useMemo(
+    () => ({
+      classNode: (props: NodeProps<ClassData>) => (
+        <ClassNode
+          {...props}
+          isHighlighted={props.id === highlightedNodeId}
+        />
+      )
+    }),
+    [highlightedNodeId]
+  );
 
   // Derived state
   const editMode = useMemo(() => !!currentNode, [currentNode]);
@@ -152,6 +167,35 @@ export function DiagramEditor({ selectedProject, onSave }: DiagramEditorProps) {
     () => currentColumnIndex !== null,
     [currentColumnIndex]
   );
+  const classSummaries = useMemo(
+    () =>
+      nodes.map((node) => ({
+        id: node.id,
+        name: node.data?.name || "Untitled",
+        attributeCount: node.data?.attributes?.length ?? 0,
+        position: node.position,
+        width: node.width,
+        height: node.height
+      })),
+    [nodes]
+  );
+  const filteredClasses = useMemo(() => {
+    const query = classSearch.trim().toLowerCase();
+    const sorted = [...classSummaries].sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+    if (!query) return sorted;
+    return sorted.filter((cls) => cls.name.toLowerCase().includes(query));
+  }, [classSearch, classSummaries]);
+
+  useEffect(() => {
+    if (
+      highlightedNodeId &&
+      !nodes.some((node) => node.id === highlightedNodeId)
+    ) {
+      setHighlightedNodeId(null);
+    }
+  }, [highlightedNodeId, nodes]);
 
   const onSelectChange = (type: string) => {
     if (type === "ENUM") {
@@ -195,6 +239,30 @@ export function DiagramEditor({ selectedProject, onSave }: DiagramEditorProps) {
       setIsDialogOpen(true);
     },
     [reactFlowInstance, nodes.length]
+  );
+
+  const handleFocusNode = useCallback(
+    (nodeId: string) => {
+      if (!reactFlowInstance) return;
+      const target = classSummaries.find((cls) => cls.id === nodeId);
+      if (!target) return;
+
+      const baseX = target.position?.x ?? 0;
+      const baseY = target.position?.y ?? 0;
+      const width =
+        typeof target.width === "number" ? target.width : 200;
+      const height =
+        typeof target.height === "number" ? target.height : 120;
+
+      const centerX = baseX + width / 2;
+      const centerY = baseY + height / 2;
+
+      reactFlowInstance.setCenter(centerX, centerY, {
+        zoom: 1.2,
+        duration: 600
+      });
+    },
+    [classSummaries, reactFlowInstance]
   );
 
   // Helper functions
@@ -387,10 +455,22 @@ export function DiagramEditor({ selectedProject, onSave }: DiagramEditorProps) {
   }, [newClass, reactFlowInstance, setNodes]);
 
   const handleEditClass = useCallback((node: Node<ClassData>) => {
+    setHighlightedNodeId(node.id);
     setNewClass({ ...node.data });
     setCurrentNode(node);
     setIsDialogOpen(true);
   }, []);
+  const handleSelectClassFromList = useCallback(
+    (nodeId: string) => {
+      const target = nodes.find((node) => node.id === nodeId);
+      if (!target) return;
+      setHighlightedNodeId(nodeId);
+      setCurrentNode(null);
+      setIsDialogOpen(false);
+      handleFocusNode(nodeId);
+    },
+    [handleFocusNode, nodes]
+  );
 
   const handleDeleteClass = useCallback(() => {
     if (!currentNode) return;
@@ -402,11 +482,14 @@ export function DiagramEditor({ selectedProject, onSave }: DiagramEditorProps) {
           edge.source !== currentNode.id && edge.target !== currentNode.id
       )
     );
+    if (highlightedNodeId === currentNode.id) {
+      setHighlightedNodeId(null);
+    }
 
     setCurrentNode(null);
     setIsDialogOpen(false);
     toast.success("Class deleted successfully");
-  }, [currentNode, setEdges, setNodes]);
+  }, [currentNode, highlightedNodeId, setEdges, setNodes]);
 
   const resetForm = useCallback(() => {
     setNewClass(DEFAULT_CLASS);
@@ -546,6 +629,47 @@ export function DiagramEditor({ selectedProject, onSave }: DiagramEditorProps) {
           >
             <Controls />
             <Background />
+            <Panel
+              position="top-left"
+              className="w-64 bg-white/90 backdrop-blur-sm border rounded-lg shadow-sm p-3 space-y-3 text-sm"
+            >
+              <div className="flex items-center justify-between">
+                <div className="font-semibold">Classes</div>
+                <span className="text-xs text-muted-foreground">
+                  {nodes.length}
+                </span>
+              </div>
+              <Input
+                placeholder="Search class"
+                value={classSearch}
+                onChange={(e) => setClassSearch(e.target.value)}
+                className="h-8 text-xs"
+              />
+              <div className="max-h-64 overflow-y-auto space-y-1 pr-1">
+                {filteredClasses.length > 0 ? (
+                  filteredClasses.map((cls) => (
+                    <button
+                      key={cls.id}
+                      className="w-full text-left px-2 py-1.5 rounded-md border hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                      onClick={() => handleSelectClassFromList(cls.id)}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium truncate">
+                          {cls.name}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {cls.attributeCount} attrs
+                        </span>
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-xs text-muted-foreground text-center py-6">
+                    No classes found
+                  </p>
+                )}
+              </div>
+            </Panel>
             <Panel position="top-right" className="flex gap-2">
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
